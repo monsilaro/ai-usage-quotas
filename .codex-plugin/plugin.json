@@ -1,0 +1,22 @@
+{
+  "name": "ai-usage",
+  "version": "0.1.0+codex.20260905023714",
+  "description": "Local AI usage dashboard across coding tools, models, tokens and estimated API costs.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI Usage",
+    "shortDescription": "Vos outils IA, leurs tokens et co\u00fbts, au m\u00eame endroit.",
+    "longDescription": "Dashboard local multi-outils : Codex, Claude Code, Gemini CLI, Grok Build, OpenCode et imports CSV Cursor. Graphiques, filtres, tarifs personnalis\u00e9s et export des compteurs. Vos conversations restent sur votre machine.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Ouvre mon dashboard AI Usage.",
+      "R\u00e9sume mon utilisation IA cette semaine."
+    ],
+    "brandColor": "#B8ECC7"
+  }
+}

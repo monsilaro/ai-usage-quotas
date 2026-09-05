@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Usage — Votre activité, au même endroit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b8ecc7' d='M16 1 31 16 16 31 1 16z'/%3E%3Cpath fill='%230c0e10' d='m16 7 9 9-9 9-9-9z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css?token=__TOKEN__">
+<script defer src="/app.js?token=__TOKEN__"></script>
+</head>
+<body class="loading">
+<svg hidden aria-hidden="true">
+  <symbol id="icon-codex" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></symbol>
+  <symbol id="icon-claude" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></g></symbol>
+  <symbol id="icon-gemini" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c.6 5.2 4.3 8.9 9.5 9.5-5.2.6-8.9 4.3-9.5 9.5-.6-5.2-4.3-8.9-9.5-9.5 5.2-.6 8.9-4.3 9.5-9.5Z"/></symbol>
+  <symbol id="icon-grok" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></g></symbol>
+  <symbol id="icon-opencode" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6 4 12l5 6M15 6l5 6-5 6"/></g></symbol>
+  <symbol id="icon-cursor" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3.5 19.5 11.6l-6.1 1.3-3.1 5.6L6 3.5Z"/></symbol>
+  <symbol id="icon-day" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></g></symbol>
+  <symbol id="icon-generic" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+</svg>
+<div id="nav-backdrop" class="nav-backdrop"></div>
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="#"><span class="brand-icon">◈</span> AI Usage<span class="version">LOCAL</span></a>
+  <div class="nav-title">VOTRE ESPACE</div>
+  <button class="nav active" id="overview"><span>▥</span> Vue d’ensemble</button>
+  <button class="nav" id="open-sources"><span>⌘</span> Sources <span id="source-count" class="badge">—</span></button>
+  <button class="nav" id="open-prices"><span>◇</span> Tarifs des modèles</button>
+  <div class="nav-title source-title">OUTILS <small>cliquer pour filtrer</small></div>
+  <div id="source-list" class="source-list">
+    <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
+    <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
+    <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
+  </div>
+  <div class="sidebar-bottom"><span class="live-dot"></span><div>Sur votre machine<small>Vos conversations restent locales.</small></div></div>
+</aside>
+<main>
+  <header>
+    <div class="header-left"><button id="menu" class="icon-button menu-button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar">☰</button><div class="breadcrumb">Votre espace <span>/</span> Usage</div></div>
+    <div class="header-actions"><span class="local-label"><i class="live-dot"></i> Local</span><button id="refresh" class="icon-button" title="Relire les historiques" aria-label="Actualiser les données">↻</button></div>
+  </header>
+  <section class="page-heading"><div><div class="eyebrow">UNE VUE SUR VOTRE ACTIVITÉ</div><h1>Chaque modèle. Une seule vue.</h1><p>Tokens, cache et coûts estimés de vos outils IA.</p></div><button id="export" class="button secondary">↓ Exporter</button></section>
+  <section class="panel plan-limits" aria-labelledby="plan-limits-title">
+    <div class="section-heading"><div><h2 id="plan-limits-title">Limites des forfaits</h2><p>Quotas du compte · indépendants des filtres d’historique</p></div><button class="button secondary" id="refresh-quotas">↻ Actualiser les quotas</button></div>
+    <div id="quota-cards" class="quota-grid" aria-live="polite"><p class="muted">Lecture des limites de vos comptes…</p></div>
+    <p id="quota-status" class="small muted" role="status">Lecture au maximum une fois par minute. Aucun appel au modèle.</p>
+  </section>
+  <section class="toolbar">
+    <div class="segmented" id="periods" aria-label="Période"><button data-period="1">24 h</button><button data-period="7" class="selected" aria-pressed="true">7 jours</button><button data-period="30">30 jours</button><button data-period="90">90 jours</button><button data-period="all">Tout</button></div>
+    <div class="filters"><label class="sr-only" for="tool">Outil</label><select id="tool"><option value="all">Tous les outils</option></select><label class="sr-only" for="model">Modèle</label><select id="model"><option value="all">Tous les modèles</option></select><label class="sr-only" for="project">Projet</label><select id="project"><option value="all">Tous les projets</option></select></div>
+  </section>
+  <div id="exchange-note" class="exchange-note"></div>
+  <div id="notice" class="notice" hidden></div>
+  <section class="hero panel">
+    <div class="hero-summary">
+      <div class="eyebrow" id="hero-label">COÛT API ESTIMÉ</div>
+      <div class="hero-number sk" id="hero-number">—</div>
+      <div id="date-range" class="muted sk sk-text">Lecture de vos historiques…</div>
+      <div class="estimate-note" id="estimate-note">Équivalent API en CAD.<br>Ce montant n’est pas votre facture.</div>
+      <div class="session-line"><span class="live-dot"></span><span id="session-total">— sessions</span></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-heading"><span id="chart-title">Coût quotidien</span><div class="segmented compact" id="metrics"><button data-metric="cost" class="selected" aria-pressed="true">Coût</button><button data-metric="total">Tokens</button></div></div>
+      <div id="chart" class="chart" role="img" aria-label="Graphique d’usage"><div class="loading-chart sk"></div></div>
+      <div id="chart-legend" class="chart-legend"></div>
+    </div>
+  </section>
+  <section class="stats">
+    <article class="panel stat"><div>Tokens traités</div><strong id="stat-total" class="sk">—</strong><small>Entrée + cache + sortie</small></article>
+    <article class="panel stat"><div>Entrée en cache</div><strong id="stat-cache" class="sk">—</strong><small id="cache-ratio">— des tokens entrants</small></article>
+    <article class="panel stat"><div>Entrée hors cache</div><strong id="stat-input" class="sk">—</strong><small id="cache-write">— en écriture de cache</small></article>
+    <article class="panel stat"><div>Tokens de sortie</div><strong id="stat-output" class="sk">—</strong><small>Raisonnement inclus</small></article>
+    <article class="panel stat accent"><div>Économies du cache</div><strong id="stat-savings" class="sk">—</strong><small>Estimation aux tarifs connus</small></article>
+  </section>
+  <section class="panel breakdown">
+    <div class="section-heading"><div><h2>Répartition</h2><p id="breakdown-subtitle">Votre utilisation en détail.</p></div><div class="segmented compact" id="groups"><button data-group="model" class="selected" aria-pressed="true">Modèle</button><button data-group="tool">Outil</button><button data-group="day">Jour</button></div></div>
+    <div class="table-scroll">
+      <table id="breakdown-table">
+        <thead><tr>
+          <th data-sort="key" aria-sort="none"><button><span id="group-heading">Modèle</span><i class="sort-arrow"></i></button></th>
+          <th data-sort="cost" aria-sort="none"><button>Coût estimé <span class="muted" id="cost-currency">CAD</span><i class="sort-arrow"></i></button></th>
+          <th>Part des tokens</th>
+          <th data-sort="total" aria-sort="none" class="th-tokens"><button>Tokens<i class="sort-arrow"></i></button></th>
+          <th data-sort="sessions" aria-sort="none"><button>Sessions connues<i class="sort-arrow"></i></button></th>
+          <th class="th-spark">Tendance</th>
+        </tr></thead>
+        <tbody id="breakdown-body">
+          <tr class="sk-row"><td><div class="model-cell"><span class="tool-icon sk"></span><div><span class="sk sk-text"></span></div></div></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td></td></tr>
+          <tr class="sk-row"><td><div class="model-cell"><span class="tool-icon sk"></span><div><span class="sk sk-text"></span></div></div></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td></td></tr>
+          <tr class="sk-row"><td><div class="model-cell"><span class="tool-icon sk"></span><div><span class="sk sk-text"></span></div></div></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td><span class="sk sk-text short"></span></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer"><span id="coverage">Vérification des sources…</span><span id="updated">—</span></div>
+  </section>
+  <footer><span>AI Usage <span class="muted">/</span> Conçu pour vos outils, sur votre machine.</span><button class="text-button" id="footer-prices">Tarifs des modèles ↗</button><button class="text-button" id="footer-sources">Voir les sources et la couverture ↗</button></footer>
+</main>
+<dialog id="sources-dialog"><div class="dialog-header"><div><div class="eyebrow">VOTRE HISTORIQUE LOCAL</div><h2>Sources de données</h2></div><button class="icon-button close-dialog" aria-label="Fermer">×</button></div><p class="muted">Les compteurs viennent des historiques enregistrés. Une source vide ne signifie pas une consommation nulle.</p><div id="source-cards"></div><div class="import-box"><h3>Importer Cursor</h3><p>Dans Cursor : Dashboard → Usage → Export CSV. Les imports qui se recouvrent sont dédupliqués. Les colonnes de tokens servent au calcul; la facture Cursor n’est pas importée.</p><label class="button secondary file-label">Choisir un CSV<input type="file" id="cursor-file" accept=".csv,text/csv"></label><span id="import-status" role="status"></span></div><p class="small muted">Chemins personnalisés : <code id="config-path"></code></p></dialog>
+<dialog id="prices-dialog"><div class="dialog-header"><div><div class="eyebrow" id="price-currency">CAD PAR MILLION DE TOKENS</div><h2>Tarifs des modèles</h2></div><button class="icon-button close-dialog" aria-label="Fermer">×</button></div><p class="muted">Tarifs API convertis en dollars canadiens. Catalogues LiteLLM et models.dev, tarifs de base actuels appliqués à l’historique. Les remises de forfait, paliers de contexte et modes de service peuvent différer.</p><div class="catalog-row"><span id="catalog-status">—</span><button class="button secondary" id="refresh-prices">↻ Actualiser le catalogue</button></div><p id="exchange-status" class="small muted"></p><div class="complete-prices"><button class="button" id="complete-prices">Compléter les tarifs manquants</button><p id="complete-status" role="status" class="small muted">Recherche dans les catalogues publics, sans appel IA. Les tarifs personnalisés sont conservés.</p></div><div id="unknown-models" class="notice-inline"></div><div id="automatic-prices" class="small muted"></div><section class="detected-prices"><h3>Tarifs actuels des modèles détectés</h3><p class="small muted" id="detected-price-note"></p><div class="table-scroll"><table><thead><tr><th>Modèle / fournisseur</th><th>Entrée</th><th>Lecture cache</th><th>Écriture cache</th><th>Sortie</th><th>Source</th></tr></thead><tbody id="detected-price-body"></tbody></table></div></section><form id="price-form"><label>Identifiant exact du modèle<input id="price-model" list="model-options" required maxlength="200" placeholder="ex. mon-modele"><datalist id="model-options"></datalist></label><div class="price-grid"><label>Entrée<input id="price-input" type="number" min="0" step="any" required placeholder="0.00"></label><label>Lecture cache<input id="price-cached" type="number" min="0" step="any" required placeholder="0.00"></label><label>Écriture cache<input id="price-write" type="number" min="0" step="any" required placeholder="0.00"></label><label>Sortie<input id="price-output" type="number" min="0" step="any" required placeholder="0.00"></label></div><button class="button" type="submit">Enregistrer le tarif</button><span id="price-status" role="status"></span></form><div id="custom-prices"></div></dialog>
+<div id="toast" role="status" hidden></div>
+</body></html>
