@@ -56,7 +56,7 @@ Data directory: `~/.local/share/ai-usage`, overridable using `AI_USAGE_DATA_DIR`
 }
 ```
 
-Source folders are read only. OpenCode opens SQLite in read-only/query-only mode. For quota reads only, the backend selects the opencode-go credential from OpenCode auth.json (or OPENCODE_AUTH_CONTENT), sends it only to the fixed HTTPS opencode.ai usage endpoint with redirects disabled, and never returns it to the browser or logs. Codex manages its own connection. No Grok or Claude credentials or browser cookies are read. All HTTP routes require the launch token and a loopback Host; cross-origin requests are rejected. CSV imports are limited to 20 MB and persist only normalized counters. Overlapping Cursor exports are deduplicated by request ID when present, otherwise by exact row and occurrence; exports that change historical row metadata without request IDs can require clearing `cursor-events.json` and reimporting a single complete export.
+The dashboard reads source histories without editing them. An explicit Grok refresh launches Grok Build, which can write its own normal local logs and runtime state. OpenCode opens SQLite in read-only/query-only mode. For quota reads only, the backend selects the opencode-go credential from OpenCode auth.json (or OPENCODE_AUTH_CONTENT), sends it only to the fixed HTTPS opencode.ai usage endpoint with redirects disabled, and never returns it to the browser or logs. Codex manages its own connection. The dashboard does not read Grok or Claude credentials or browser cookies. A background Grok Build process uses its existing sign-in to fetch billing information. All HTTP routes require the launch token and a loopback Host; cross-origin requests are rejected. CSV imports are limited to 20 MB and persist only normalized counters. Overlapping Cursor exports are deduplicated by request ID when present, otherwise by exact row and occurrence; exports that change historical row metadata without request IDs can require clearing `cursor-events.json` and reimporting a single complete export.
 
 ## Development and sharing
 
@@ -72,7 +72,17 @@ The **Limites des forfaits** cards show provider-reported percentages, remaining
 
 - **Codex:** Uses `codex app-server` and `account/rateLimits/read`, including separate model buckets. It starts no thread and sends no model prompt. The CLI is discovered on PATH, in the Codex app installation or via `AI_USAGE_CODEX_BIN`.
 - **OpenCode Go:** Uses `GET https://opencode.ai/zen/go/v1/usage`. Sign into the `opencode-go` provider in OpenCode first. The stored API credential is used only for that provider request. An unavailable endpoint or missing subscription is reported explicitly.
-- **Grok:** Reads the latest billing snapshot from the last 8 MiB of ~/.grok/logs/unified.jsonl (honoring GROK_HOME). Shows provider-reported creditUsagePercent, period end and subscription tier with the original observation time. No credentials or model request are needed. Open /usage in Grok Build to refresh the source snapshot. Missing fields stay unknown; older snapshots are marked stale. This is the shared subscription quota, not just Build token usage.
+- **Grok:** Reads the latest billing snapshot from the last 8 MiB of `~/.grok/logs/unified.jsonl` (honoring `GROK_HOME`). Shows provider-reported usage, period end and subscription tier with the original observation time. This is the shared subscription quota, not just Build token usage. Use **Actualiser Grok** on its card to request a fresh snapshot in the background. Grok Build must be installed and already signed in.
+
+### Refreshing Grok
+
+**Actualiser les quotas** and the automatic visible-page refresh reread quota sources; they do not launch Grok. Visiting the usage page on grok.com does not update the local Grok Build log.
+
+**Actualiser Grok** starts the installed Grok Build executable with `--minimal`, with its window hidden on Windows and no model prompt. Grok uses its existing connection to retrieve billing information. The dashboard checks the local log once per second for an observation recorded after the refresh began, then requests termination of the process it launched. It also requests termination on error or after 30 polling attempts (about 30 seconds). Other existing Grok sessions are not targeted; the dashboard does not inspect or terminate descendant or shared leader processes.
+
+Repeated requests share an in-progress refresh, with at least one minute between launch attempts. The button displays **Actualisation…**, then the card updates its percentage and observation time. If no fresh observation arrives, an error is shown and the previous observation is not relabeled as current. Check the Grok Build installation and sign-in; running `/usage` manually in Grok Build remains a fallback.
+
+Observations older than 15 minutes, or unavailable readings, are displayed as **Ancien relevé** with reduced opacity. This explains why Grok can appear darker than Codex. Passed reset times require a fresh reading; the dashboard never assumes usage has become zero. Reset countdowns use compact 13 px text.
 
 Antigravity is not included in Gemini CLI history collection.
 

@@ -334,7 +334,7 @@ function renderQuotas() {
       const expired = w.resetsAt !== null && w.resetsAt <= now;
       const remaining = Math.max(0, 100 - w.usedPercent);
       return `${index === 1 ? `<details class="quota-more"><summary>Autres limites (${windows.length - 1})</summary>` : ''}<div class="quota-window${expired || stale ? ' quota-stale' : ''}"><div class="quota-line"><span>${esc(w.label)}</span><strong>${expired ? 'À actualiser' : `${percent(w.usedPercent)} % utilisés`}</strong></div>${expired ? '<p class="small muted">La réinitialisation prévue est passée. Un nouveau relevé est nécessaire.</p>' : `<progress max="100" value="${Math.min(100, w.usedPercent)}" aria-label="${esc(card.name + ' · ' + w.label)}"></progress><div class="small muted">${percent(remaining)} % restants${stale ? ' au dernier relevé' : ''}</div>`}<div class="quota-reset${expired ? ' quota-reset-expired' : ''}">${quotaResetLabel(w.resetsAt, now)}</div><div class="small muted">${w.resetsAt ? `Réinitialisation : ${date(w.resetsAt)}` : 'Réinitialisation non fournie'}</div></div>${index > 0 && index === windows.length - 1 ? '</details>' : ''}`;
-    }).join('')}${card.message ? `<p class="quota-message">${esc(card.message)}</p>` : ''}<div class="quota-meta small muted">${esc(card.source)}${card.observedAt ? `<br>Relevé : ${date(card.observedAt)}` : ''}</div><div class="quota-actions"><a href="${esc(card.url)}" target="_blank" rel="noreferrer">Voir mon forfait ↗</a></div></article>`;
+    }).join('')}${card.message ? `<p class="quota-message">${esc(card.message)}</p>` : ''}<div class="quota-meta small muted">${esc(card.source)}${card.observedAt ? `<br>Relevé : ${date(card.observedAt)}` : ''}</div><div class="quota-actions">${card.id === 'grok' ? '<button id="refresh-grok" class="subtle">↻ Actualiser Grok</button>' : ''}<a href="${esc(card.url)}" target="_blank" rel="noreferrer">Voir mon forfait ↗</a></div></article>`;
   }).join('');
 
 }
@@ -343,6 +343,17 @@ async function refreshQuotas() {
     const result = await api('quotas'); quotaCards = result.cards; renderQuotas();
   } catch (error) { $('quota-status').textContent = error.message; }
 }
+$('quota-cards').addEventListener('click', event => {
+  const button = event.target.closest('#refresh-grok');
+  if (!button) return;
+  busy(button, async () => {
+    button.textContent = 'Actualisation…';
+    $('quota-status').textContent = 'Actualisation de Grok en arrière-plan…';
+    try { const result = await api('quotas/grok/refresh', {}); quotaCards = result.cards; renderQuotas(); $('quota-status').textContent = 'Quota Grok actualisé.'; }
+    catch (error) { $('quota-status').textContent = error.message; throw error; }
+    finally { button.textContent = '↻ Actualiser Grok'; }
+  });
+});
 $('refresh-quotas').onclick = event => busy(event.currentTarget, refreshQuotas);
 refreshQuotas();
 setInterval(() => { if (!document.hidden) { renderQuotas(); refreshQuotas(); } }, 60000);

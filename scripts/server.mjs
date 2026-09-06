@@ -9,7 +9,7 @@ import { createCollector } from './collector.mjs';
 import { loadPrices, loadSupplement, priceEvent, detectedPrices, validateOverrides } from './pricing.mjs';
 import { loadExchange, ratesToUsd } from './exchange.mjs';
 import { cursorCSV } from './parsers.mjs';
-import { createQuotaReader } from './quotas.mjs';
+import { createQuotaReader, refreshGrok } from './quotas.mjs';
 
 export const pluginRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const buildId = createHash('sha256').update(['scripts/server.mjs', 'scripts/launch.mjs', 'scripts/collector.mjs', 'scripts/parsers.mjs', 'scripts/pricing.mjs', 'scripts/exchange.mjs', 'scripts/quotas.mjs', 'scripts/claude-quota.mjs', 'web/index.html', 'web/app.js', 'web/style.css'].map(file => fs.readFileSync(path.join(pluginRoot, file), 'utf8')).join('\n')).digest('hex');
@@ -63,6 +63,7 @@ export async function createApp({ home = os.homedir(), dataDir = defaultDataDir(
       if (url.pathname === '/api/health' && req.method === 'GET') return send(200, { app: 'ai-usage', root: pluginRoot, buildId, version: '0.1.0' });
       if (url.pathname === '/api/shutdown' && req.method === 'POST') { send(200, { stopped: true }); server.close(); return; }
       if (url.pathname === '/api/data' && req.method === 'GET') return send(200, snapshot || await refresh());
+      if (url.pathname === '/api/quotas/grok/refresh' && req.method === 'POST') { await refreshGrok(home); await readQuotas(); return send(200, { cards: await readQuotas(true) }); }
       if (url.pathname === '/api/quotas' && req.method === 'GET') return send(200, { cards: await readQuotas() });
       if (url.pathname === '/api/refresh' && req.method === 'POST') return send(200, await refresh());
       if (url.pathname === '/api/prices/refresh' && req.method === 'POST') return send(200, await refresh(true));

@@ -67,6 +67,30 @@ export async function readGrok(home, env = process.env) {
     throw error;
   } finally { await handle?.close(); }
 }
+let grokRefreshPending, grokRefreshAt = 0;
+export async function refreshGrok(home = os.homedir()) {
+  if (grokRefreshPending) return grokRefreshPending;
+  if (Date.now() - grokRefreshAt < 60000) throw new Error('Patientez une minute entre deux actualisations Grok.');
+  grokRefreshAt = Date.now();
+  grokRefreshPending = (async () => {
+    const startedAt = Date.now();
+    const executable = path.join(process.env.GROK_HOME || path.join(home, '.grok'), 'bin', process.platform === 'win32' ? 'grok.exe' : 'grok');
+    const child = spawn(executable, ['--minimal'], { cwd: home, windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
+    let failed = false;
+    child.on('error', () => { failed = true; });
+    child.stdin.on('error', () => {});
+    try {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (failed) throw new Error('Impossible de démarrer Grok Build. Vérifiez son installation.');
+        const snapshot = await readGrok(home).catch(() => null);
+        if (snapshot?.observedAt >= startedAt) return snapshot;
+      }
+      throw new Error('Grok n’a pas fourni de nouveau relevé. Vérifiez votre connexion dans Grok Build.');
+    } finally { child.stdin.destroy(); child.kill(); }
+  })().finally(() => { grokRefreshPending = null; });
+  return grokRefreshPending;
+}
 export async function readCodex(home = os.homedir()) {
   const candidates = [process.env.AI_USAGE_CODEX_BIN, path.join(home, '.codex/packages/standalone/current/bin/codex.exe'), path.join(home, '.local/bin/codex')].filter(Boolean);
   let executable = process.platform === 'win32' ? 'codex.exe' : 'codex';
@@ -114,10 +138,10 @@ export async function readGo(home, fetcher = fetch, env = process.env) {
 }
 export function createQuotaReader(home, dataDir, adapters = {}) {
   let cache, pending, attemptedAt = 0;
-  const read = async () => {
+  const read = async (force = false) => {
     const now = Date.now();
     if (pending) return pending;
-    if (cache && now - attemptedAt < 60000) return cache;
+    if (!force && cache && now - attemptedAt < 60000) return cache;
     attemptedAt = now;
     pending = (async () => {
       const cards = [
@@ -142,7 +166,7 @@ export function createQuotaReader(home, dataDir, adapters = {}) {
             const snapshot = await (adapters.grok || readGrok)(home);
             windows = snapshot.windows; observedAt = snapshot.observedAt;
             if (snapshot.plan) card.name = `Grok · ${snapshot.plan}`;
-            card.message = 'Relevé du forfait partagé. Pour obtenir un nouveau relevé, ouvrez /usage dans Grok Build.';
+            card.message = 'Relevé du forfait partagé. Actualisez Grok pour obtenir un nouveau relevé en arrière-plan.';
           }
           if (!windows.length) throw new Error('Aucune limite de forfait fournie par cette connexion.');
           return { ...card, windows, observedAt, status: 'available' };

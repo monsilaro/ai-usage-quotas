@@ -297,7 +297,7 @@ input:not([type=file]) { width: 100%; display: block; background: #0d1214; borde
 .quota-actions a { color: var(--quota-accent); }
 .quota-more { margin-top: 14px; font-size: 13px; }
 .quota-more summary { cursor: pointer; color: var(--quota-accent); }
-.quota-reset { display: inline-block; margin: 14px 0 7px; padding: 8px 12px; border: 1px solid #40684c; border-radius: 8px; background: #192e20; color: #c9f5d5; font-size: 17px; font-weight: 650; line-height: 1.4; }
+.quota-reset { display: inline-block; margin: 10px 0 6px; padding: 5px 8px; border: 1px solid #40684c; border-radius: 8px; background: #192e20; color: #c9f5d5; font-size: 13px; font-weight: 600; line-height: 1.4; }
 .quota-reset-expired { background: #302718; color: #e6bc77; border-color: #695332; }
 #quota-status { margin: 18px 0 0; }
 @media(max-width: 1450px) { .quota-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
