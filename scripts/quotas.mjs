@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
+import { sanitizeQuota } from './statusline-relay.mjs';
 
 const number = v => typeof v === 'number' && Number.isFinite(v);
 export function quotaWindow(label, percent, reset, minutes = null) {
@@ -24,6 +25,20 @@ export function codexWindows(result) {
 export function claudeWindows(value) {
   return [['five_hour', '5 heures', 300], ['seven_day', 'Semaine', 10080], ['spend_limit', 'Limite de dépenses', null]]
     .map(([key, label, minutes]) => quotaWindow(label, value?.rate_limits?.[key]?.used_percentage, value?.rate_limits?.[key]?.resets_at, minutes)).filter(Boolean);
+}
+export function antigravityWindows(value) {
+  return Object.entries(value?.quota || {}).map(([label, w]) =>
+    number(w?.remaining_fraction) && w.remaining_fraction >= 0 && w.remaining_fraction <= 1
+      ? quotaWindow(label, (1 - w.remaining_fraction) * 100, w.reset_time) : null).filter(Boolean);
+}
+export async function readLocalQuota(provider, dataDir) {
+  let value;
+  try { value = JSON.parse(await fs.readFile(path.join(dataDir, `${provider}-quota.json`), 'utf8')); }
+  catch { throw new Error('Activez le relais, puis utilisez le CLI pour enregistrer ses limites de forfait.'); }
+  if (!number(value?.observedAt) || value.observedAt <= 0 || value.observedAt > Date.now() + 60000) throw new Error('Date du relevé local non valide.');
+  const safe = sanitizeQuota(provider, value, value.observedAt);
+  if (!safe) throw new Error('Le CLI n’a pas encore transmis de limites de forfait.');
+  return { observedAt: safe.observedAt, windows: provider === 'claude' ? claudeWindows(safe) : antigravityWindows(safe) };
 }
 export function goWindows(value) {
   return [['rolling', '5 heures', 300], ['weekly', 'Semaine', 10080], ['monthly', 'Mois', null]]
@@ -144,9 +159,17 @@ export function createQuotaReader(home, dataDir, adapters = {}) {
     if (!force && cache && now - attemptedAt < 60000) return cache;
     attemptedAt = now;
     pending = (async () => {
+      const geminiRoot = path.join(process.env.GEMINI_CLI_HOME || home, '.gemini');
+      const hasAntigravity = Boolean(adapters.antigravity) || (await Promise.all([
+        path.join(dataDir, 'antigravity-quota.json'),
+        ...['antigravity', 'antigravity-cli', 'antigravity-ide'].map(name => path.join(geminiRoot, name)),
+        ...(process.env.ANTIGRAVITY_CLI_HOME ? [process.env.ANTIGRAVITY_CLI_HOME] : [])
+      ].map(file => fs.access(file).then(() => true, () => false)))).some(Boolean);
       const cards = [
         { id: 'codex', name: 'Codex', url: 'https://chatgpt.com/codex/settings/usage', source: 'Compte Codex' },
+        { id: 'claude', name: 'Claude Code', url: 'https://claude.ai/settings/usage', source: 'Dernier relevé de la barre de statut Claude Code' },
         { id: 'grok', name: 'Grok', url: 'https://grok.com', source: 'Dernier relevé local Grok Build' },
+        ...(hasAntigravity ? [{ id: 'antigravity', name: 'Antigravity', url: 'https://antigravity.google/docs/cli/commands/usage/', source: 'Dernier relevé du CLI Antigravity · distinct de Gemini CLI' }] : []),
         { id: 'opencode', name: 'OpenCode Go', url: 'https://opencode.ai/auth', source: 'Compte OpenCode Go' }
       ];
       return Promise.all(cards.map(async card => {
@@ -162,6 +185,10 @@ export function createQuotaReader(home, dataDir, adapters = {}) {
             }
           }
           if (card.id === 'opencode') windows = goWindows(await (adapters.go || readGo)(home));
+          if (['claude', 'antigravity'].includes(card.id)) {
+            const snapshot = await (adapters[card.id] || (() => readLocalQuota(card.id, dataDir)))();
+            windows = snapshot.windows; observedAt = snapshot.observedAt;
+          }
           if (card.id === 'grok') {
             const snapshot = await (adapters.grok || readGrok)(home);
             windows = snapshot.windows; observedAt = snapshot.observedAt;

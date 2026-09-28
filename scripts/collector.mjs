@@ -4,14 +4,16 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import { codexState, codexLine, claudeLine, geminiMessages, grokLine, opencodeMessage } from './parsers.mjs';
+import { readAntigravityDB } from './antigravity.mjs';
 
-export const labels = { codex: 'Codex', claude: 'Claude Code', gemini: 'Gemini CLI', grok: 'Grok Build', opencode: 'OpenCode', cursor: 'Cursor' };
+export const labels = { codex: 'Codex', claude: 'Claude Code', gemini: 'Gemini CLI', antigravity: 'Antigravity (CLI / IDE)', grok: 'Grok Build', opencode: 'OpenCode', cursor: 'Cursor' };
 export function sourcePaths(home = os.homedir(), config = {}, env = process.env) {
   const root = (key, fallback) => env[key]?.trim() || fallback;
   const sources = {
     codex: [path.join(root('CODEX_HOME', path.join(home, '.codex')), 'sessions'), path.join(root('CODEX_HOME', path.join(home, '.codex')), 'archived_sessions')],
     claude: [path.join(root('CLAUDE_CONFIG_DIR', path.join(home, '.claude')), 'projects')],
     gemini: [path.join(root('GEMINI_CLI_HOME', home), '.gemini', 'tmp')],
+    antigravity: ['antigravity', 'antigravity-cli', 'antigravity-ide'].map(name => path.join(root('GEMINI_CLI_HOME', home), '.gemini', name)),
     grok: [path.join(root('GROK_HOME', path.join(home, '.grok')), 'sessions')],
     opencode: [path.join(root('XDG_DATA_HOME', path.join(home, '.local', 'share')), 'opencode')],
     cursor: []
@@ -104,6 +106,15 @@ export function createCollector(home, dataDir) {
       } else {
         for (const root of [...new Set(roots)]) {
           if (fs.existsSync(root)) status.status = 'empty';
+          if (tool === 'antigravity') {
+            const files = await walk(path.join(root, 'conversations'), file => /\.(db|pb)$/.test(file), status);
+            status.files += files.length;
+            for (const file of files) {
+              if (file.endsWith('.pb')) { status.unsupported = true; continue; }
+              try { events.push(...await readAntigravityDB(file, status)); } catch { status.errors++; }
+            }
+            continue;
+          }
           if (tool === 'opencode') {
             const db = root.endsWith('.db') ? root : path.join(root, 'opencode.db');
             if (fs.existsSync(db)) {
@@ -127,6 +138,11 @@ export function createCollector(home, dataDir) {
       for (const e of events) if (!deduped.has(e.key) || deduped.get(e.key).total < e.total) deduped.set(e.key, e);
       events = [...deduped.values()];
       status.records = events.length;
+      status.latestAt = events.reduce((latest, e) => Math.max(latest, e.time), 0) || null;
+      if (tool === 'antigravity') status.message = status.unsupported || status.errors || status.malformed
+        ? 'Certaines bases Antigravity ont un format non reconnu ou incomplet. Seuls les compteurs datés lisibles sont inclus; les anciens fichiers .pb ne sont pas pris en charge.'
+        : status.status === 'not-found' ? 'Installez ce skill sur la machine où Antigravity est utilisé. Les dossiers CLI, IDE et Antigravity 2.0 sont détectés séparément.'
+        : 'Lecture des compteurs SQLite CLI / IDE. Les identifiants de modèles non résolus restent sans tarif; aucune estimation à partir du texte.';
       if (events.length && tool !== 'cursor') status.status = 'connected';
       if (status.errors || status.malformed || status.unsupported) status.status = 'partial';
       sources.push(status); all.push(...events);

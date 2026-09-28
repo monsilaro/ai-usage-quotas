@@ -82,6 +82,7 @@ test('Collector deduplicates files and refreshes changed data; SQLite is read on
 test('Local server enforces token and origin, imports idempotently and applies persisted prices', async t => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ai-usage-http-')); t.after(() => fsp.rm(dir, { recursive: true, force: true }));
   await fsp.writeFile(path.join(dir, 'config.json'), JSON.stringify({ paths: { codex: [], claude: [], gemini: [], grok: [], opencode: [] } }));
+  await fsp.writeFile(path.join(dir, 'supplemental-rates.json'), JSON.stringify({ time: Date.now(), raw: {} }));
   await fsp.writeFile(path.join(dir, 'rates.json'), JSON.stringify({ time: Date.now(), raw: {} }));
   await fsp.writeFile(path.join(dir, 'exchange.json'), JSON.stringify({ fetchedAt: Date.now(), rate: 1.4, date: '2026-09-04' }));
   const app = await createApp({ home: dir, dataDir: dir }); await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));

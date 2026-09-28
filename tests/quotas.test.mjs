@@ -62,7 +62,7 @@ test('Grok reads the latest billing snapshot, preserving zero and never returnin
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 
-test('Claude relay preserves settings, records only quota fields and refuses an existing status line', async () => {
+test('Claude relay preserves settings, records only quota fields and wraps an existing status line without changing its output', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ai-usage-relay-'));
   const old = process.env.CLAUDE_CONFIG_DIR; process.env.CLAUDE_CONFIG_DIR = path.join(root, '.claude');
   try {
@@ -72,12 +72,19 @@ test('Claude relay preserves settings, records only quota fields and refuses an 
     await installClaudeRelay(root, root);
     const settings = JSON.parse(await fs.readFile(file, 'utf8'));
     assert.equal(settings.theme, 'dark'); assert.ok(settings.statusLine.command.includes('ai-usage-claude-relay'));
-    const relay = spawnSync(process.execPath, [path.join(root, 'ai-usage-claude-relay.mjs')], { input: JSON.stringify({ session_id: 'PRIVATE', transcript_path: 'PRIVATE', rate_limits: { seven_day: { used_percentage: 42, resets_at: 1789158144, extra: 'PRIVATE' } } }), encoding: 'utf8' });
+    const relay = spawnSync(process.execPath, [path.join(root, 'ai-usage-claude-relay.mjs'), 'claude', root], { input: JSON.stringify({ session_id: 'PRIVATE', transcript_path: 'PRIVATE', rate_limits: { seven_day: { used_percentage: 42, resets_at: 1789158144, extra: 'PRIVATE' } } }), encoding: 'utf8' });
     assert.equal(relay.status, 0);
     const saved = await fs.readFile(path.join(root, 'claude-quota.json'), 'utf8');
     assert.ok(!saved.includes('PRIVATE')); assert.equal(JSON.parse(saved).rate_limits.seven_day.used_percentage, 42);
     await fs.writeFile(file, JSON.stringify({ statusLine: { type: 'command', command: 'existing-status' } }));
-    await assert.rejects(installClaudeRelay(root, root), /conservée/);
-    assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).statusLine.command, 'existing-status');
+    await fs.writeFile(file, JSON.stringify({ theme: 'dark', statusLine: { type: 'command', command: 'printf existing-status', padding: 2 } }));
+    await installClaudeRelay(root, root);
+    const wrapped = JSON.parse(await fs.readFile(file, 'utf8'));
+    assert.equal(wrapped.statusLine.padding, 2);
+    const rendered = spawnSync(wrapped.statusLine.command, { shell: true, input: '{}', encoding: 'utf8' });
+    assert.equal(rendered.status, 0); assert.equal(rendered.stdout, 'existing-status');
+    assert.equal(JSON.parse(await fs.readFile(path.join(root, 'claude-quota.json'), 'utf8')).rate_limits.seven_day.used_percentage, 42);
+    await installClaudeRelay(root, root);
+    assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), wrapped);
   } finally { if (old === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = old; await fs.rm(root, { recursive: true, force: true }); }
 });

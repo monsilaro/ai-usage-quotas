@@ -10,9 +10,10 @@ import { loadPrices, loadSupplement, priceEvent, detectedPrices, validateOverrid
 import { loadExchange, ratesToUsd } from './exchange.mjs';
 import { cursorCSV } from './parsers.mjs';
 import { createQuotaReader, refreshGrok } from './quotas.mjs';
+import { installRelay } from './install-relay.mjs';
 
 export const pluginRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-export const buildId = createHash('sha256').update(['scripts/server.mjs', 'scripts/launch.mjs', 'scripts/collector.mjs', 'scripts/parsers.mjs', 'scripts/pricing.mjs', 'scripts/exchange.mjs', 'scripts/quotas.mjs', 'scripts/claude-quota.mjs', 'web/index.html', 'web/app.js', 'web/style.css'].map(file => fs.readFileSync(path.join(pluginRoot, file), 'utf8')).join('\n')).digest('hex');
+export const buildId = createHash('sha256').update(['scripts/server.mjs', 'scripts/launch.mjs', 'scripts/collector.mjs', 'scripts/antigravity.mjs', 'scripts/parsers.mjs', 'scripts/pricing.mjs', 'scripts/exchange.mjs', 'scripts/quotas.mjs', 'scripts/claude-quota.mjs', 'scripts/install-relay.mjs', 'scripts/statusline-relay.mjs', 'web/index.html', 'web/app.js', 'web/style.css'].map(file => fs.readFileSync(path.join(pluginRoot, file), 'utf8')).join('\n')).digest('hex');
 export const defaultDataDir = () => process.env.AI_USAGE_DATA_DIR || path.join(os.homedir(), '.local', 'share', 'ai-usage');
 export async function createApp({ home = os.homedir(), dataDir = defaultDataDir(), token = randomBytes(24).toString('hex') } = {}) {
   await fsp.mkdir(dataDir, { recursive: true });
@@ -65,6 +66,11 @@ export async function createApp({ home = os.homedir(), dataDir = defaultDataDir(
       if (url.pathname === '/api/data' && req.method === 'GET') return send(200, snapshot || await refresh());
       if (url.pathname === '/api/quotas/grok/refresh' && req.method === 'POST') { await refreshGrok(home); await readQuotas(); return send(200, { cards: await readQuotas(true) }); }
       if (url.pathname === '/api/quotas' && req.method === 'GET') return send(200, { cards: await readQuotas() });
+      if (url.pathname === '/api/quotas/relay' && req.method === 'POST') {
+        const { provider } = await body(req);
+        const result = await installRelay(provider, home, dataDir);
+        return send(200, { ...result, cards: await readQuotas(true) });
+      }
       if (url.pathname === '/api/refresh' && req.method === 'POST') return send(200, await refresh());
       if (url.pathname === '/api/prices/refresh' && req.method === 'POST') return send(200, await refresh(true));
       if (url.pathname === '/api/prices/complete' && req.method === 'POST') {

@@ -1,7 +1,9 @@
 const $ = id => document.getElementById(id);
 let quotaCards = [];
+let activeView = 'usage';
+let grokRefreshing = false;
 const token = new URLSearchParams(location.search).get('token');
-const names = { codex: 'Codex', claude: 'Claude Code', gemini: 'Gemini CLI', grok: 'Grok Build', opencode: 'OpenCode', cursor: 'Cursor' };
+const names = { codex: 'Codex', claude: 'Claude Code', gemini: 'Gemini CLI', antigravity: 'Antigravity', grok: 'Grok Build', opencode: 'OpenCode', cursor: 'Cursor' };
 const statuses = { connected: 'Connecté', imported: 'Importé', empty: 'Aucun compteur', 'not-found': 'Non trouvé', 'import-required': 'Import CSV', partial: 'Couverture partielle' };
 const palette = ['#b8ecc7', '#7fb8e6', '#e6bc77', '#c9a7f0', '#f09a9a', '#8fd6d0', '#d3d98a'];
 const OTHER = '__other';
@@ -92,7 +94,8 @@ function render() {
   $('coverage').textContent = `${data.sources.filter(s => s.records > 0).length} sources avec des compteurs · ${total.unpriced ? 'Coût partiel' : 'Tarifs connus pour les relevés affichés'}`;
   $('updated').textContent = `Actualisé à ${new Date(data.generatedAt).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}`;
   renderSourceValues(inPeriod);
-  renderChart(start, end); renderTable(total, start, end);
+  if (activeView === 'usage') renderChart(start, end);
+  renderTable(total, start, end);
 }
 function renderNotice(total) {
   const items = [];
@@ -141,7 +144,7 @@ function renderTable(total, start, end) {
     const label = group === 'tool' ? names[r.key] || r.key : r.key;
     const fixButton = r.unpriced ? `<button class="text-button fix-price" data-model="${group === 'model' ? esc(r.key) : ''}">${r.priced ? 'Compléter' : 'Ajouter un tarif'}</button>` : '';
     const cost = r.priced ? dollars(r.cost) + (r.unpriced ? ' <span class="unknown">+ ?</span>' : '') : '<span class="unknown">Tarif inconnu</span>';
-    return `<tr${r.unpriced ? ' class="unpriced"' : ''}><td><div class="model-cell">${icon(group === 'day' ? 'day' : tools[0])}<div><strong>${esc(label)}</strong><small>${tools.map(t => names[t] || t).join(' · ')}</small></div></div></td><td><div class="cost-cell">${cost}${fixButton}</div></td><td><div class="share-cell"><span class="share-track"><span style="width:${share}%"></span></span>${share.toFixed(1)} %</div></td><td>${fmt(r.total)}</td><td>${r.sessionCount || '—'}</td><td class="spark-cell">${showSpark ? sparkline(r.events, slotKeys, slotKey) : ''}</td></tr>`;
+    return `<tr${r.unpriced ? ' class="unpriced"' : ''}><td><div class="model-cell">${icon(group === 'day' ? 'day' : tools[0])}<div><strong>${esc(label)}</strong><small>${tools.map(t => names[t] || t).join(' · ')}</small>${group === 'model' && r.events.some(e => e.priceModel) ? `<small title="${esc(r.events.find(e => e.priceModel).priceNote)}">≈ ${esc(r.events.find(e => e.priceModel).priceModel)}</small>` : ''}</div></div></td><td><div class="cost-cell">${cost}${fixButton}</div></td><td><div class="share-cell"><span class="share-track"><span style="width:${share}%"></span></span>${share.toFixed(1)} %</div></td><td>${fmt(r.total)}</td><td>${r.sessionCount || '—'}</td><td class="spark-cell">${showSpark ? sparkline(r.events, slotKeys, slotKey) : ''}</td></tr>`;
   }).join('') : '<tr><td colspan="6" class="empty">Aucun compteur pour ces filtres.<br><br>Essayez une autre période ou consultez les sources.</td></tr>';
   $('breakdown-body').querySelectorAll('.fix-price').forEach(b => b.onclick = () => openPriceFor(b.dataset.model));
 }
@@ -228,16 +231,16 @@ function renderSources() {
   $('source-list').innerHTML = data.sources.map(s => `<button class="source-item" data-tool="${esc(s.tool)}" aria-pressed="false" title="Filtrer sur ${esc(s.label)} · ${statuses[s.status]}">${icon(s.tool)}<span class="source-label">${esc(s.label)}</span><span class="source-value"></span>${dot(s)}</button>`).join('');
   $('source-list').querySelectorAll('[data-tool]').forEach(b => b.onclick = () => {
     $('tool').value = $('tool').value === b.dataset.tool ? 'all' : b.dataset.tool;
-    render(); closeNav();
+    showView('usage'); render(); closeNav();
   });
-  $('source-cards').innerHTML = data.sources.map(s => `<div class="source-card"><div class="source-card-header">${icon(s.tool)}${esc(s.label)}<span class="status">${dot(s)}${statuses[s.status]}</span></div><p>${s.files} fichiers · ${s.records} relevés${s.errors ? ` · ${s.errors} erreurs de lecture` : ''}${s.malformed ? ` · ${s.malformed} lignes non lisibles` : ''}</p>${s.unsupported ? '<p>Historique OpenCode récent au format session_message non pris en charge; les anciens messages sont inclus.</p>' : ''}${s.paths.map(p => `<code>${esc(p)}</code>`).join('<br>')}</div>`).join('');
+  $('source-cards').innerHTML = data.sources.map(s => `<div class="source-card"><div class="source-card-header">${icon(s.tool)}${esc(s.label)}<span class="status">${dot(s)}${statuses[s.status]}</span></div><p>${s.files} fichiers · ${s.records} relevés${s.errors ? ` · ${s.errors} erreurs de lecture` : ''}${s.malformed ? ` · ${s.malformed} lignes non lisibles` : ''}</p>${s.message ? `<p>${esc(s.message)}</p>` : ''}${s.latestAt ? `<p>Dernier relevé : ${niceDate(s.latestAt)}</p>` : ''}${s.unsupported && !s.message ? '<p>Format partiellement pris en charge; certains compteurs ne peuvent pas être lus.</p>' : ''}${s.paths.map(p => `<code>${esc(p)}</code>`).join('<br>')}</div>`).join('');
   $('config-path').textContent = data.configFile;
 }
 function renderPrices() {
   const detected = data.detectedPrices || [];
   $('detected-price-note').textContent = `${detected.length} modèle(s) / outil(s) · ${currency()} par million de tokens · tarifs utilisés dans les estimations`;
-  const priceSources = { custom: 'Personnalisé', catalog: 'LiteLLM', 'models.dev': 'models.dev', unknown: 'Inconnu' };
-  $('detected-price-body').innerHTML = detected.length ? detected.map(item => `<tr${item.rates ? '' : ' class="unpriced"'}><td><div class="model-cell"><div><strong>${esc(item.model)}</strong><small>${esc(names[item.tool] || item.tool)}${item.provider ? ' · ' + esc(item.provider) : ''}</small></div></div></td>${['input', 'cached', 'write', 'output'].map(k => `<td>${item.rates ? unitRate(item.rates[k]) : '<span class="unknown">&mdash;</span>'}</td>`).join('')}<td${item.rates ? '' : ' class="unknown"'}>${priceSources[item.priceSource] || 'Inconnu'}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">Aucun modèle détecté dans les historiques.</td></tr>';
+  const priceSources = { custom: 'Personnalisé', catalog: 'LiteLLM', 'models.dev': 'models.dev', equivalent: 'Équivalence configurée', unknown: 'Inconnu' };
+  $('detected-price-body').innerHTML = detected.length ? detected.map(item => `<tr${item.rates ? '' : ' class="unpriced"'}><td><div class="model-cell"><div><strong>${esc(item.model)}</strong><small>${esc(names[item.tool] || item.tool)}${item.provider ? ' · ' + esc(item.provider) : ''}</small>${item.priceModel ? `<small title="${esc(item.priceNote)}">Tarif : ${esc(item.priceModel)}</small>` : ''}</div></div></td>${['input', 'cached', 'write', 'output'].map(k => `<td>${item.rates ? unitRate(item.rates[k]) : '<span class="unknown">&mdash;</span>'}</td>`).join('')}<td${item.rates ? '' : ' class="unknown"'}>${priceSources[item.priceSource] || 'Inconnu'}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">Aucun modèle détecté dans les historiques.</td></tr>';
   $('catalog-status').textContent = `${data.pricing.models} identifiants · ${data.pricing.updatedAt ? 'catalogue du ' + niceDate(data.pricing.updatedAt) : 'catalogue indisponible'}`;
   const unknown = [...new Set(data.events.filter(e => e.cost === null).map(e => e.model))].sort();
   $('unknown-models').textContent = unknown.length ? `Tarifs inconnus : ${unknown.join(', ')}. Aucun montant ne sera inventé si les catalogues ne permettent pas de les identifier.` : 'Tous les modèles enregistrés ont un tarif connu.';
@@ -276,7 +279,30 @@ document.querySelectorAll('#breakdown-table th[data-sort]').forEach(th => th.que
 for (const id of ['tool', 'model', 'project']) $(id).onchange = render;
 for (const id of ['open-sources', 'footer-sources']) $(id).onclick = () => { $('sources-dialog').showModal(); closeNav(); };
 for (const id of ['open-prices', 'footer-prices']) $(id).onclick = () => { $('prices-dialog').showModal(); closeNav(); };
-$('overview').onclick = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); closeNav(); };
+function showView(view, updateHash = true) {
+  const previousView = activeView;
+  activeView = view === 'plans' ? 'plans' : 'usage';
+  const plans = activeView === 'plans';
+  $('usage-view').hidden = plans;
+  $('plans-view').hidden = !plans;
+  $('tool-navigation').hidden = plans;
+  $('refresh').hidden = plans;
+  $('page-breadcrumb').textContent = plans ? 'Forfaits' : 'Coûts et activité';
+  for (const [id, selected] of [['overview', !plans], ['plans-nav', plans]]) {
+    $(id).classList.toggle('active', selected);
+    if (selected) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current');
+  }
+  const hash = plans ? '#forfaits' : '#couts';
+  if (updateHash && location.hash !== hash) history.pushState(null, '', hash);
+  closeNav();
+  if (previousView !== activeView) window.scrollTo({ top: 0 });
+  if (plans) { renderQuotas(); refreshQuotas(); }
+  else if (data) { const { start, end } = bounds(); renderChart(start, end); }
+}
+$('brand-home').onclick = event => { event.preventDefault(); showView('usage'); };
+$('overview').onclick = () => showView('usage');
+$('plans-nav').onclick = () => showView('plans');
+window.addEventListener('popstate', () => showView(location.hash === '#forfaits' ? 'plans' : 'usage', false));
 document.querySelectorAll('.close-dialog').forEach(b => b.onclick = () => b.closest('dialog').close());
 document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 // Mobile navigation drawer.
@@ -314,49 +340,72 @@ api('data').then(accept).catch(e => {
   $('chart').textContent = 'Chargement impossible. Utilisez Actualiser pour réessayer.'; $('hero-number').textContent = '—';
 });
 function quotaResetLabel(resetsAt, now) {
-  if (resetsAt === null) return 'Reset non communiqué';
+  if (resetsAt === null) return 'Date non communiquée';
   const remaining = resetsAt - now;
-  if (remaining <= 0) return 'Reset prévu passé · actualiser';
+  if (remaining <= 0) return 'Échéance passée';
   const minutes = Math.floor(remaining / 60000);
   const days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60);
   const duration = days ? `${days} j${hours ? ` ${hours} h` : ''}` : hours ? `${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ''}` : minutes ? `${minutes} min` : 'moins d’une minute';
-  return `Reset dans ${duration}`;
+  return `Dans ${duration}`;
 }
 function renderQuotas() {
   const now = Date.now();
   const date = value => new Date(value).toLocaleString('fr-CA', { dateStyle: 'short', timeStyle: 'short' });
   const percent = value => new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 1 }).format(value);
-  $('quota-cards').innerHTML = quotaCards.map(card => {
-    const stale = card.status !== 'available' || (card.observedAt && now - card.observedAt > 15 * 60000);
-    const rank = w => w.label === 'Semaine' ? 0 : w.minutes === 10080 ? 1 : 2;
+  const expanded = new Set([...$('plans-view').querySelectorAll('details[data-provider][open]')].map(d => d.dataset.provider));
+  const expired = w => w.resetsAt !== null && w.resetsAt <= now;
+  const stale = card => card.status !== 'available' || !card.observedAt || now - card.observedAt > 15 * 60000;
+  const current = card => card.windows.length && !stale(card) && !card.windows.some(expired);
+  const connected = quotaCards.filter(card => card.windows.length);
+  const unavailable = quotaCards.filter(card => !card.windows.length);
+  const fresh = connected.filter(current).length;
+  $('quota-summary').textContent = !quotaCards.length ? 'Lecture des limites de vos comptes…' : connected.length ? `${fresh} fournisseur(s) à jour${connected.length > fresh ? ` · ${connected.length - fresh} à actualiser` : ''}` : 'Aucun relevé de forfait disponible';
+  const renderCard = card => {
+    const isStale = stale(card), hasExpired = card.windows.some(expired);
+    const rank = w => w.minutes === 300 || w.label === '5 heures' ? 0 : w.minutes === 10080 || w.label === 'Semaine' ? 1 : 2;
     const windows = [...card.windows].sort((a, b) => rank(a) - rank(b));
-    return `<article class="quota-card"><div class="quota-card-title">${icon(card.id)}<h3>${esc(card.name)}</h3><span class="quota-badge">${windows.length ? stale ? 'Ancien relevé' : 'Relevé disponible' : 'Indisponible'}</span></div>${windows.map((w, index) => {
-      const expired = w.resetsAt !== null && w.resetsAt <= now;
-      const remaining = Math.max(0, 100 - w.usedPercent);
-      return `${index === 1 ? `<details class="quota-more"><summary>Autres limites (${windows.length - 1})</summary>` : ''}<div class="quota-window${expired || stale ? ' quota-stale' : ''}"><div class="quota-line"><span>${esc(w.label)}</span><strong>${expired ? 'À actualiser' : `${percent(w.usedPercent)} % utilisés`}</strong></div>${expired ? '<p class="small muted">La réinitialisation prévue est passée. Un nouveau relevé est nécessaire.</p>' : `<progress max="100" value="${Math.min(100, w.usedPercent)}" aria-label="${esc(card.name + ' · ' + w.label)}"></progress><div class="small muted">${percent(remaining)} % restants${stale ? ' au dernier relevé' : ''}</div>`}<div class="quota-reset${expired ? ' quota-reset-expired' : ''}">${quotaResetLabel(w.resetsAt, now)}</div><div class="small muted">${w.resetsAt ? `Réinitialisation : ${date(w.resetsAt)}` : 'Réinitialisation non fournie'}</div></div>${index > 0 && index === windows.length - 1 ? '</details>' : ''}`;
-    }).join('')}${card.message ? `<p class="quota-message">${esc(card.message)}</p>` : ''}<div class="quota-meta small muted">${esc(card.source)}${card.observedAt ? `<br>Relevé : ${date(card.observedAt)}` : ''}</div><div class="quota-actions">${card.id === 'grok' ? '<button id="refresh-grok" class="subtle">↻ Actualiser Grok</button>' : ''}<a href="${esc(card.url)}" target="_blank" rel="noreferrer">Voir mon forfait ↗</a></div></article>`;
-  }).join('');
-
+    const renderWindow = w => {
+      const isExpired = expired(w);
+      const level = !isExpired && !isStale && w.usedPercent >= 95 ? ' quota-critical' : !isExpired && !isStale && w.usedPercent >= 80 ? ' quota-warning' : '';
+      return `<div class="quota-window${isExpired || isStale ? ' quota-stale' : ''}${level}"><div class="quota-line"><span>${esc(w.label)}</span><strong>${isExpired ? '—' : `${percent(w.usedPercent)}<small> %</small>`}</strong></div>${isExpired ? '<div class="quota-expired-track"></div>' : `<progress max="100" value="${Math.min(100, w.usedPercent)}" aria-label="${esc(card.name + ' · ' + w.label + ' · pourcentage utilisé')}"></progress>`}<div class="quota-window-foot"><span>${isExpired ? 'Relevé expiré' : isStale ? 'Au dernier relevé' : 'utilisés'}</span><span class="quota-reset" title="${w.resetsAt ? esc(date(w.resetsAt)) : ''}">${quotaResetLabel(w.resetsAt, now)}</span></div></div>`;
+    };
+    const state = !windows.length ? 'Sans relevé' : isStale || hasExpired ? 'À actualiser' : 'À jour';
+    const actions = `${card.id === 'grok' ? `<button data-refresh-grok class="button secondary"${grokRefreshing ? ' disabled' : ''}>${grokRefreshing ? 'Actualisation…' : '↻ Actualiser Grok'}</button>` : ''}${['claude', 'antigravity'].includes(card.id) && !windows.length ? `<button class="button secondary" data-relay="${esc(card.id)}">Connecter le CLI</button>` : ''}<a href="${esc(card.url)}" target="_blank" rel="noreferrer">Mon forfait ↗</a>`;
+    return `<article class="quota-row${windows.length ? '' : ' quota-row-unavailable'}"><div class="quota-provider">${icon(card.id)}<div><h2>${esc(card.name)}</h2><span class="quota-state${windows.length && (isStale || hasExpired) ? ' quota-state-old' : ''}">${state}</span></div></div><div class="quota-windows">${windows.length ? windows.slice(0, 2).map(renderWindow).join('') : '<p class="quota-empty">Connectez votre compte ou activez la collecte pour afficher ses limites.</p>'}</div><div class="quota-actions">${actions}</div><details class="quota-details" data-provider="${esc(card.id)}"${expanded.has(card.id) ? ' open' : ''}><summary>${windows.length > 2 ? `+${windows.length - 2} limite(s) · ` : ''}Source et détails${card.observedAt ? ` <span>· Relevé du ${date(card.observedAt)}</span>` : ''}</summary>${windows.length > 2 ? `<div class="quota-extra-windows">${windows.slice(2).map(renderWindow).join('')}</div>` : ''}<p class="quota-meta">${esc(card.source)}</p>${card.message ? `<p class="quota-message">${esc(card.message)}</p>` : ''}</details></article>`;
+  };
+  $('quota-cards').innerHTML = connected.map(renderCard).join('');
+  $('quota-unavailable').hidden = !unavailable.length;
+  $('quota-unavailable-title').textContent = `Autres fournisseurs · ${unavailable.length} sans relevé`;
+  $('quota-unavailable-cards').innerHTML = unavailable.map(renderCard).join('');
 }
 async function refreshQuotas() {
   try {
     const result = await api('quotas'); quotaCards = result.cards; renderQuotas();
   } catch (error) { $('quota-status').textContent = error.message; }
 }
-$('quota-cards').addEventListener('click', event => {
-  const button = event.target.closest('#refresh-grok');
+$('plans-view').addEventListener('click', event => {
+  const relay = event.target.closest('[data-relay]');
+  if (relay) {
+    const provider = relay.dataset.relay;
+    if (!window.confirm(`Activer le relais ${names[provider]}? Cela ajoute la collecte des quotas à sa barre de statut locale, conserve la commande actuelle et sauvegarde les réglages.`)) return;
+    return busy(relay, async () => {
+      const result = await api('quotas/relay', { provider }); quotaCards = result.cards; renderQuotas(); $('quota-status').textContent = result.message;
+    });
+  }
+  const button = event.target.closest('[data-refresh-grok]');
   if (!button) return;
   busy(button, async () => {
+    grokRefreshing = true;
     button.textContent = 'Actualisation…';
     $('quota-status').textContent = 'Actualisation de Grok en arrière-plan…';
     try { const result = await api('quotas/grok/refresh', {}); quotaCards = result.cards; renderQuotas(); $('quota-status').textContent = 'Quota Grok actualisé.'; }
     catch (error) { $('quota-status').textContent = error.message; throw error; }
-    finally { button.textContent = '↻ Actualiser Grok'; }
+    finally { grokRefreshing = false; renderQuotas(); }
   });
 });
 $('refresh-quotas').onclick = event => busy(event.currentTarget, refreshQuotas);
-refreshQuotas();
-setInterval(() => { if (!document.hidden) { renderQuotas(); refreshQuotas(); } }, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshQuotas(); });
+showView(location.hash === '#forfaits' ? 'plans' : 'usage', false);
+setInterval(() => { if (!document.hidden && activeView === 'plans') { renderQuotas(); refreshQuotas(); } }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && activeView === 'plans') refreshQuotas(); });
 let resizeTimer;
-window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (data) { const { start, end } = bounds(); renderChart(start, end); } }, 80); });
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (data && activeView === 'usage') { const { start, end } = bounds(); renderChart(start, end); } }, 80); });

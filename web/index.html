@@ -12,6 +12,7 @@
 <svg hidden aria-hidden="true">
   <symbol id="icon-codex" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></symbol>
   <symbol id="icon-claude" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></g></symbol>
+  <symbol id="icon-antigravity" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" d="M4 19 12 4l8 15M8 14h8"/></symbol>
   <symbol id="icon-gemini" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c.6 5.2 4.3 8.9 9.5 9.5-5.2.6-8.9 4.3-9.5 9.5-.6-5.2-4.3-8.9-9.5-9.5 5.2-.6 8.9-4.3 9.5-9.5Z"/></symbol>
   <symbol id="icon-grok" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></g></symbol>
   <symbol id="icon-opencode" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6 4 12l5 6M15 6l5 6-5 6"/></g></symbol>
@@ -21,30 +22,29 @@
 </svg>
 <div id="nav-backdrop" class="nav-backdrop"></div>
 <aside class="sidebar" id="sidebar">
-  <a class="brand" href="#"><span class="brand-icon">◈</span> AI Usage<span class="version">LOCAL</span></a>
+  <a class="brand" id="brand-home" href="#couts"><span class="brand-icon">◈</span> AI Usage<span class="version">LOCAL</span></a>
   <div class="nav-title">VOTRE ESPACE</div>
-  <button class="nav active" id="overview"><span>▥</span> Vue d’ensemble</button>
+  <button class="nav active" id="overview" aria-current="page" aria-controls="usage-view"><span>▥</span> Coûts et activité</button>
+  <button class="nav" id="plans-nav" aria-controls="plans-view"><span>◴</span> Forfaits</button>
   <button class="nav" id="open-sources"><span>⌘</span> Sources <span id="source-count" class="badge">—</span></button>
   <button class="nav" id="open-prices"><span>◇</span> Tarifs des modèles</button>
+  <div id="tool-navigation">
   <div class="nav-title source-title">OUTILS <small>cliquer pour filtrer</small></div>
   <div id="source-list" class="source-list">
     <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
     <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
     <div class="source-item sk-row"><span class="tool-icon sk"></span><span class="sk sk-text"></span></div>
   </div>
+  </div>
   <div class="sidebar-bottom"><span class="live-dot"></span><div>Sur votre machine<small>Vos conversations restent locales.</small></div></div>
 </aside>
 <main>
   <header>
-    <div class="header-left"><button id="menu" class="icon-button menu-button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar">☰</button><div class="breadcrumb">Votre espace <span>/</span> Usage</div></div>
+    <div class="header-left"><button id="menu" class="icon-button menu-button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar">☰</button><div class="breadcrumb">Votre espace <span>/</span> <b id="page-breadcrumb">Coûts et activité</b></div></div>
     <div class="header-actions"><span class="local-label"><i class="live-dot"></i> Local</span><button id="refresh" class="icon-button" title="Relire les historiques" aria-label="Actualiser les données">↻</button></div>
   </header>
+  <div id="usage-view" aria-label="Coûts et activité">
   <section class="page-heading"><div><div class="eyebrow">UNE VUE SUR VOTRE ACTIVITÉ</div><h1>Chaque modèle. Une seule vue.</h1><p>Tokens, cache et coûts estimés de vos outils IA.</p></div><button id="export" class="button secondary">↓ Exporter</button></section>
-  <section class="panel plan-limits" aria-labelledby="plan-limits-title">
-    <div class="section-heading"><div><h2 id="plan-limits-title">Limites des forfaits</h2><p>Quotas du compte · indépendants des filtres d’historique</p></div><button class="button secondary" id="refresh-quotas">↻ Actualiser les quotas</button></div>
-    <div id="quota-cards" class="quota-grid" aria-live="polite"><p class="muted">Lecture des limites de vos comptes…</p></div>
-    <p id="quota-status" class="small muted" role="status">Lecture au maximum une fois par minute. Aucun appel au modèle.</p>
-  </section>
   <section class="toolbar">
     <div class="segmented" id="periods" aria-label="Période"><button data-period="1">24 h</button><button data-period="7" class="selected" aria-pressed="true">7 jours</button><button data-period="30">30 jours</button><button data-period="90">90 jours</button><button data-period="all">Tout</button></div>
     <div class="filters"><label class="sr-only" for="tool">Outil</label><select id="tool"><option value="all">Tous les outils</option></select><label class="sr-only" for="model">Modèle</label><select id="model"><option value="all">Tous les modèles</option></select><label class="sr-only" for="project">Projet</label><select id="project"><option value="all">Tous les projets</option></select></div>
@@ -92,6 +92,14 @@
       </table>
     </div>
     <div class="table-footer"><span id="coverage">Vérification des sources…</span><span id="updated">—</span></div>
+  </section>
+  </div>
+  <section id="plans-view" aria-labelledby="plan-limits-title" hidden>
+    <div class="page-heading"><div><div class="eyebrow">VOS ABONNEMENTS IA</div><h1 id="plan-limits-title">Limites des forfaits</h1><p>Vos fenêtres d’utilisation et leurs prochaines remises à zéro.</p></div><button class="button secondary" id="refresh-quotas">↻ Actualiser</button></div>
+    <div class="quota-overview"><p id="quota-summary" role="status">Lecture des limites de vos comptes…</p><span>Quotas du compte · indépendants des filtres de coûts</span></div>
+    <div id="quota-cards" class="quota-list"></div>
+    <details id="quota-unavailable" class="quota-disconnected" hidden><summary id="quota-unavailable-title">Autres fournisseurs</summary><div id="quota-unavailable-cards" class="quota-list"></div></details>
+    <p id="quota-status" class="small muted" role="status"></p>
   </section>
   <footer><span>AI Usage <span class="muted">/</span> Conçu pour vos outils, sur votre machine.</span><button class="text-button" id="footer-prices">Tarifs des modèles ↗</button><button class="text-button" id="footer-sources">Voir les sources et la couverture ↗</button></footer>
 </main>

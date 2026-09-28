@@ -42,7 +42,7 @@ test('Supplemental prices persist and can resolve later without a network reques
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'ai-usage-extra-')); t.after(() => fsp.rm(dir, { recursive: true, force: true }));
   let requests = 0;
   const fetcher = async () => { requests++; return { ok: true, json: async () => catalog }; };
-  assert.equal((await loadSupplement(dir, false, fetcher)).table.size, 0); assert.equal(requests, 0);
-  assert.equal((await loadSupplement(dir, true, fetcher)).table.size, 3);
+  assert.equal((await loadSupplement(dir, false, fetcher)).table.size, 3); assert.equal(requests, 1);
+  assert.equal((await loadSupplement(dir, false, fetcher)).table.size, 3);
   assert.equal((await loadSupplement(dir, false, fetcher)).table.size, 3); assert.equal(requests, 1);
 });

@@ -4,6 +4,12 @@ import path from 'node:path';
 export const RATE_URL = 'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json';
 export const SUPPLEMENT_URL = 'https://models.dev/api.json';
 const valid = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+// Explicit equivalents, not provider claims about subscription billing.
+export const modelEquivalents = {
+  'codex:codex-auto-review': { model: 'gpt-5.6-sol', note: 'Équivalence choisie par l’utilisateur : GPT-5.6 Sol.' },
+  'grok:grok-4.5-build': { model: 'grok-4.5', note: 'Équivalent API Grok 4.5 · tarif de base; paliers de contexte non reconstitués.' },
+  'grok:grok-4.6-build': { model: 'grok-4.6', note: 'Équivalent API Grok 4.6 · tarif de base; paliers de contexte non reconstitués.' }
+};
 export function rateTable(raw) {
   const table = new Map(), aliases = new Map();
   for (const [model, v] of Object.entries(raw || {})) {
@@ -44,31 +50,33 @@ export function resolvePrice(e, table, overrides = {}, supplemental = new Map())
   const override = Object.hasOwn(overrides, e.model) ? overrides[e.model] : null;
   const key = e.model.toLowerCase();
   const primary = table.get(key), extra = primary ? null : supplementalRate(e, supplemental);
-  const rate = override ? Object.fromEntries(Object.entries(override).map(([k, v]) => [k, v / 1e6])) : primary || extra;
-  return { rate, priceSource: override ? 'custom' : primary ? 'catalog' : extra ? 'models.dev' : 'unknown' };
+  const equivalent = modelEquivalents[`${e.tool}:${key}`];
+  const equivalentRate = equivalent && !primary && !extra ? table.get(equivalent.model) || supplementalRate({ ...e, model: equivalent.model }, supplemental) : null;
+  const rate = override ? Object.fromEntries(Object.entries(override).map(([k, v]) => [k, v / 1e6])) : primary || extra || equivalentRate;
+  return { rate, priceSource: override ? 'custom' : primary ? 'catalog' : extra ? 'models.dev' : equivalentRate ? 'equivalent' : 'unknown',
+    ...(equivalentRate && !override ? { priceModel: equivalent.model, priceNote: equivalent.note } : {}) };
 }
 export function detectedPrices(events, table, overrides = {}, supplemental = new Map()) {
   const detected = new Map();
   for (const e of events) {
     const key = JSON.stringify([e.model, e.provider || '', e.tool]);
     if (detected.has(key)) continue;
-    const { rate, priceSource } = resolvePrice(e, table, overrides, supplemental);
-    detected.set(key, { model: e.model, provider: e.provider || '', tool: e.tool, priceSource,
+    const { rate, ...pricing } = resolvePrice(e, table, overrides, supplemental);
+    detected.set(key, { model: e.model, provider: e.provider || '', tool: e.tool, ...pricing,
       rates: rate ? Object.fromEntries(Object.entries(rate).map(([k, v]) => [k, v * 1e6])) : null });
   }
   return [...detected.values()].sort((a, b) => a.model.localeCompare(b.model) || a.provider.localeCompare(b.provider) || a.tool.localeCompare(b.tool));
 }
 export function priceEvent(e, table, overrides = {}, supplemental = new Map()) {
-  const { rate, priceSource } = resolvePrice(e, table, overrides, supplemental);
+  const { rate, ...pricing } = resolvePrice(e, table, overrides, supplemental);
   const cost = rate ? e.input * rate.input + e.cached * rate.cached + e.write * rate.write + e.output * rate.output : null;
   return { ...e, cost, savings: rate ? Math.max(0, e.cached * (rate.input - rate.cached)) : null,
-    priceSource };
+    ...pricing };
 }
 export async function loadSupplement(dataDir, force = false, fetcher = fetch) {
   const file = path.join(dataDir, 'supplemental-rates.json'); let saved = null, warning = '';
   try { saved = JSON.parse(await fsp.readFile(file, 'utf8')); } catch {}
-  // First download is explicitly triggered by the missing-price button.
-  if (force || (saved && Date.now() - saved.time > 86400000)) {
+  if (force || !saved || Date.now() - saved.time > 86400000) {
     try {
       const response = await fetcher(SUPPLEMENT_URL, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error('Catalog download failed');
